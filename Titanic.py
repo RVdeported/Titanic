@@ -38,3 +38,12 @@ df_full = df_full.drop(["PassengerId"], axis = 1)
 df = df_full.drop(["Survived"], axis = 1).copy()
 label = pd.DataFrame(df_full["Survived"].copy())
 
+# passangers from 1st class were more likely to survive
+plt.hist(df["Pclass"][label[label["Survived"] == 1].index], 
+         density = 0.5)
+plt.hist(df["Pclass"][label[label["Survived"] == 0].index],
+         density = 0.5)
+plt.show()
+
+df["Pclass"]
+label[label["Survived"] == 0].index
