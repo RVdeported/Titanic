@@ -31,6 +31,10 @@ RANDOM_VAL = 228
 
 
 
+# import of dataframe
+df_full = pd.DataFrame(pd.read_csv(DATASET_TRAIN_PATH))
+df_full.index = df_full["PassengerId"]
+df_full = df_full.drop(["PassengerId"], axis = 1)
+df = df_full.drop(["Survived"], axis = 1).copy()
+label = pd.DataFrame(df_full["Survived"].copy())
 
-df = pd.DataFrame(pd.read_csv(DATASET_TRAIN_PATH))
-df.info()
