@@ -61,19 +61,43 @@ class DataPipeLine:
                 'Don' : 'High'
                 }
         self.default_title = "Ordinary"
+        self.numeric_features = ["Pclass", "Age", "SibSp", "Parch", "Fare"]
+        self.categoric_features = ["Name", "Sex", "Ticket", "Embarked"]
         
     
     def fit(self, df_, label_):
-        #loc_df = df_.copy()
-        pass
+        self.mode = df_.mode()
+        self.median = df_[self.numeric_features].median()
+        self.avg = df_[self.numeric_features].mean()
+        
+        return [self.mode, self.median, self.avg]
 
     def transform(self, df_, label_):
         loc_df = df_.copy()
         
+        # NaN fill
+        for n in self.numeric_features:
+            loc_df[n] = loc_df[n].fillna(value = self.median[n])
+        for n in self.categoric_features:
+            loc_df[n] = loc_df[n].fillna(value = self.mode[n])
+        
+        # level
+        loc_df["Level"] = loc_df["Cabin"].apply(self.get_level)
+        loc_df.loc[loc_df["Cabin"].isna() & loc_df["Fare"] < 8, "Level"] = 'F'
+        loc_df.loc[loc_df["Cabin"].isna() & loc_df["Fare"] > 25, "Level"] = 'B'
+        loc_df.loc[loc_df["Cabin"].isna(), "Level"] = 'D'
+        
         # title classification
         loc_df = self.addTitle(loc_df)
-        loc_df["Title_class"] = loc_df["Title"].apply(self.title_class) == "High"
+        loc_df["Title_class_high"] = loc_df["Title"].apply(self.title_class) == "High"
+        loc_df = loc_df.drop(["Title"], axis = 1)
         
+        # male / female
+        loc_df["Is_female"] = loc_df["Sex"] == "female"
+        loc_df = loc_df.drop(["Sex"], axis = 1)
+        
+        # dropping other
+        loc_df = loc_df.drop(["Name"], axis = 1)
         
         return loc_df
     
@@ -90,23 +114,27 @@ class DataPipeLine:
             return self.titles[x]
         except KeyError:
             return self.default_title
-
+        
+    def get_level(self, x):
+        try:
+            return x[0]
+        except TypeError:
+            return None
 
 
 # passangers from 1st class were more likely to survive
-plt.hist(df["Pclass"][label[label["Survived"] == 1].index], 
+plt.hist(df["Pclass"][labels[labels["Survived"] == 1].index], 
          density = 0.5)
-plt.hist(df["Pclass"][label[label["Survived"] == 0].index],
+plt.hist(df["Pclass"][labels[labels["Survived"] == 0].index],
          density = 0.5)
 plt.show()
 
-df["Title"].value_counts()
 
 
 
 pipe = DataPipeLine()
+pipe.fit(df, labels)
 df_prepared = pipe.transform(df, labels)
-    
 
 
 
