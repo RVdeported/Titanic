@@ -23,6 +23,8 @@ from sklearn.linear_model import LinearRegression as LR
 
 from sklearn.metrics import confusion_matrix, precision_recall_curve,accuracy_score, precision_score, f1_score, recall_score
 
+from sklearn.tree import plot_tree
+
 DATASET_TRAIN_PATH = "./input/train.csv"
 DATASET_TEST_PATH = "./input/test.csv"
 PREPARED_TRAIN_DATASET_PATH = "./output/train_prepared.csv"
@@ -30,7 +32,7 @@ PREPARED_TEST_DATASET_PATH = "./output/test_prepared.csv"
 OUTPUT_PATH = "./output/test_predicted.csv"
 MODEL_PATH = "./output/model.pickle"
 
-RANDOM_VAL = 228+14+25
+RANDOM_VAL = 228
 
 
 
@@ -73,8 +75,8 @@ class DataPipeLine:
         self.median = df_[self.numeric_features].median()
         self.avg = df_[self.numeric_features].mean()
         
-        self.sc = StandardScaler(with_mean = False)
-        #self.sc = MinMaxScaler()
+        #self.sc = StandardScaler(with_mean = False)
+        self.sc = MinMaxScaler()
         self.encoder = OneHotEncoder()
         
         loc_df = self.transform(df_, False)
@@ -97,6 +99,8 @@ class DataPipeLine:
         loc_df.loc[(loc_df["Level"].isna()) & (loc_df["Fare"] > 25.0), "Level"] = 'B'
         loc_df.loc[loc_df["Level"].isna(), "Level"] = 'D'
         
+        
+        
         # title classification
         loc_df = self.addTitle(loc_df)
         loc_df["Title_class_high"] = loc_df["Title"].apply(self.title_class) == "High"
@@ -107,10 +111,14 @@ class DataPipeLine:
         loc_df = loc_df.drop(["Sex"], axis = 1)
         
         # age cat
+        """
         loc_df["Underage"] = loc_df["Age"] <= 18
         loc_df["Middleage"] = ((loc_df["Age"] > 18) & 
                                (loc_df["Age"] < 45))
         loc_df["Elderly"] = loc_df["Age"] >= 45
+        """
+        #loc_df = loc_df.drop(["Age"], axis = 1)
+        
         
         # dropping other
         loc_df = loc_df.drop(["Name", "Cabin", "Ticket"], axis = 1)
@@ -118,18 +126,33 @@ class DataPipeLine:
         # other cat
         loc_df["Embarked_S"] = loc_df["Embarked"] == "S"
         loc_df["Embarked_C"] = loc_df["Embarked"] == "C"
-        loc_df["Embarked_Q"] = loc_df["Embarked"] == "Q"
-        loc_df["Level_A"] = loc_df["Level"] == "A"
-        loc_df["Level_B"] = loc_df["Level"] == "B"
-        loc_df["Level_C"] = loc_df["Level"] == "C"
-        loc_df["Level_D"] = loc_df["Level"] == "D"
-        loc_df["Level_E"] = loc_df["Level"] == "E"
-        loc_df["High_deck"] = (loc_df["Level"] == "A") | (loc_df["Level"] == "B")
+        #loc_df["Embarked_Q"] = loc_df["Embarked"] == "Q"
+        #loc_df["Level_A"] = loc_df["Level"] == "A"
+        #loc_df["Level_B"] = loc_df["Level"] == "B"
+        #loc_df["Level_C"] = loc_df["Level"] == "C"
+        #loc_df["Level_D"] = loc_df["Level"] == "D"
+        #loc_df["Level_E"] = loc_df["Level"] == "E"
+        loc_df["Deck_num"] = loc_df["Level"]
+        
+        loc_df = loc_df.replace({"Deck_num" : {
+            "A" : 0,
+            "B" : 1,
+            "C" : 2,
+            "D" : 3,
+            "E" : 4,
+            "F" : 4,
+            "G" : 4,
+            "T" : 4
+            }})
+        
+        #loc_df["High_deck"] = (loc_df["Level"] == "A") | (loc_df["Level"] == "B")
         loc_df["Have_sibs"] = loc_df["SibSp"] > 0
-        loc_df["Have_Parch"] = loc_df["Parch"] > 0
+        #loc_df["Have_Parch"] = loc_df["Parch"] > 0
         loc_df["Female_with_kids"] = (loc_df["SibSp"] > 0) & (loc_df["Is_female"])
         
-        
+        loc_df["Fare_log"] = np.log(loc_df["Fare"])
+        loc_df = loc_df.replace([np.inf, -np.inf], 0.01)
+        loc_df = loc_df.drop(["Fare"], axis = 1)
         
         loc_df = loc_df.drop(["Level"], axis = 1)
         loc_df = loc_df.drop(["Embarked"], axis = 1)
@@ -189,7 +212,7 @@ X_val_prepared = pipe.transform(X_val)
 model = GradientBoostingClassifier(
     max_depth = 2,
     loss = 'deviance',
-    n_estimators = 120,
+    n_estimators = 150,
     random_state = RANDOM_VAL
 )
 model_base = SVC(probability = True,
@@ -197,13 +220,13 @@ model_base = SVC(probability = True,
             degree = 3,
             gamma = 'scale')
 
-model = BaggingClassifier(model_base, 
+model_ = BaggingClassifier(model_base, 
                           n_estimators = 6,
                           random_state = RANDOM_VAL)
 # Grid search
 """
 params = {
-    'n_estimators' : [3, 4, 5, 6]
+    'n_estimators' : [140, 150, 160, 170]
     }
 search = GridSearchCV(model, params)
 search.fit(X_train_prepared, y_train)
@@ -212,7 +235,7 @@ print(search.best_params_)
 
 model.fit(X_train_prepared, y_train)
 
-threshold = 0.46
+threshold = 0.41
 
 y_train_proba = model.predict_proba(X_train_prepared)
 y_train_pred = [n[1] > threshold for n in y_train_proba]
@@ -255,3 +278,10 @@ y_test_proba = model.predict_proba(X_test_prepared)
 y_test_pred = [int(n[1] > threshold) for n in y_test_proba]
 y_test_pred = pd.DataFrame(y_test_pred, index = X_test.index, columns = ["Survived"])
 y_test_pred.to_csv(OUTPUT_PATH)
+
+
+plot_tree(model.estimators_[0][0])
+print(np.round(model.feature_importances_,2))
+features = pd.DataFrame(model.feature_importances_, X_test_prepared.columns)
+
+
