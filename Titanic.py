@@ -70,9 +70,15 @@ class DataPipeLine:
         self.median = df_[self.numeric_features].median()
         self.avg = df_[self.numeric_features].mean()
         
+        self.sc = StandardScaler(with_mean = False)
+        self.encoder = OneHotEncoder()
+        
+        loc_df = self.transform(df_, False)
+        self.sc.fit(loc_df)
+        
         return [self.mode, self.median, self.avg]
 
-    def transform(self, df_, label_):
+    def transform(self, df_, scale = True, encode = True):
         loc_df = df_.copy()
         
         # NaN fill
@@ -83,9 +89,9 @@ class DataPipeLine:
         
         # level
         loc_df["Level"] = loc_df["Cabin"].apply(self.get_level)
-        loc_df.loc[loc_df["Cabin"].isna() & loc_df["Fare"] < 8, "Level"] = 'F'
-        loc_df.loc[loc_df["Cabin"].isna() & loc_df["Fare"] > 25, "Level"] = 'B'
-        loc_df.loc[loc_df["Cabin"].isna(), "Level"] = 'D'
+        loc_df.loc[(loc_df["Level"].isna()) & (loc_df["Fare"] < 8.0), "Level"] = 'F'
+        loc_df.loc[(loc_df["Level"].isna()) & (loc_df["Fare"] > 25.0), "Level"] = 'B'
+        loc_df.loc[loc_df["Level"].isna(), "Level"] = 'D'
         
         # title classification
         loc_df = self.addTitle(loc_df)
@@ -96,8 +102,37 @@ class DataPipeLine:
         loc_df["Is_female"] = loc_df["Sex"] == "female"
         loc_df = loc_df.drop(["Sex"], axis = 1)
         
+        # age cat
+        loc_df["Underage"] = loc_df["Age"] <= 14
+        loc_df["Middleage"] = ((loc_df["Age"] > 14) & 
+                               (loc_df["Age"] < 45))
+        loc_df["Elderly"] = loc_df["Age"] >= 45
+        
         # dropping other
-        loc_df = loc_df.drop(["Name"], axis = 1)
+        loc_df = loc_df.drop(["Name", "Cabin", "Ticket"], axis = 1)
+  
+        # other cat
+
+        # dropping other
+        loc_df["Embarked_S"] = loc_df["Embarked"] == "S"
+        loc_df["Embarked_C"] = loc_df["Embarked"] == "C"
+        loc_df["Embarked_Q"] = loc_df["Embarked"] == "Q"
+        loc_df["Level_A"] = loc_df["Level"] == "A"
+        loc_df["Level_B"] = loc_df["Level"] == "B"
+        loc_df["Level_C"] = loc_df["Level"] == "C"
+        loc_df["Level_D"] = loc_df["Level"] == "D"
+        loc_df["Level_E"] = loc_df["Level"] == "E"
+        
+        
+        loc_df = loc_df.drop(["Level"], axis = 1)
+        loc_df = loc_df.drop(["Embarked"], axis = 1)
+         
+        if (scale):
+            print("Scaling...")
+            loc_df = pd.DataFrame(self.sc.transform(loc_df), columns = loc_df.columns)
+        
+        
+        
         
         return loc_df
     
@@ -134,7 +169,6 @@ plt.show()
 
 pipe = DataPipeLine()
 pipe.fit(df, labels)
-df_prepared = pipe.transform(df, labels)
-
+df_prepared = pipe.transform(df)
 
 
